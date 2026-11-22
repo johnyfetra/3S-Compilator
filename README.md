@@ -77,8 +77,9 @@ node scripts/build-jscpp.mjs   # reconstruit vendor/jscpp (après une mise à jo
 ```
 index.html                 Compilateur
 admin.html                 Espace enseignant (js/admin.js)
-server/                    Backend : api.js (routes), store.js (fichier JSON ou PostgreSQL), auth.js
+api/_lib/                  Backend : api.js (routes), store.js (fichier JSON ou PostgreSQL), auth.js
 api/index.js               Point d'entrée Vercel du backend
+server/index.js            Serveur local (npm start) : site + API
 css/style.css              Thèmes clair et sombre (bleu et rouge de l'école)
 js/app.js                  Point d'entrée : assemble les modules
 js/languages.js            Registre des langages (icône, fichier, exemple, worker)

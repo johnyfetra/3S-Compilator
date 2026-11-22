@@ -317,7 +317,7 @@ function createStore(env = process.env) {
   const url = env.DATABASE_URL || env.POSTGRES_URL;
   if (url) return new PgStore(url);
   if (env.VERCEL) return null; // pas de disque persistant sur Vercel : une base est obligatoire
-  return new FileStore(path.resolve(env.DATA_DIR || path.join(__dirname, '..', 'data'), 'db.json'));
+  return new FileStore(path.resolve(env.DATA_DIR || path.join(__dirname, '..', '..', 'data'), 'db.json'));
 }
 
 module.exports = { createStore, FileStore, DEFAULT_SETTINGS };

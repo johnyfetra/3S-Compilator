@@ -2,3 +2,6 @@ data/
 .env
 tests/
 electron/
+scripts/
+server/
+.github/

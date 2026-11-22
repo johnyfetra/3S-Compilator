@@ -1,6 +1,7 @@
 'use strict';
 // API HTTP de 3S Compilator. Un seul gestionnaire (req, res) utilisé à la fois
 // par le serveur local (server/index.js) et par la fonction Vercel (api/index.js).
+// Placé dans api/_lib : Vercel n'en fait pas une fonction et ne le publie pas.
 //
 //   GET    /api/settings                    classes et bimestres (public)
 //   POST   /api/submissions                 l'élève enregistre son devoir -> { id, editToken }

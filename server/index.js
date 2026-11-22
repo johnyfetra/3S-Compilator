@@ -18,7 +18,7 @@ function loadEnv(file) {
 }
 loadEnv(path.join(ROOT, '.env'));
 
-const { createHandler } = require('./api');
+const { createHandler } = require('../api/_lib/api');
 const api = createHandler(process.env);
 
 // Seuls ces fichiers et dossiers sont publics (jamais server/, data/, .env, node_modules/).

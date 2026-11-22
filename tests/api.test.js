@@ -5,7 +5,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createHandler } = require('../server/api.js');
+const { createHandler } = require('../api/_lib/api.js');
 
 const env = {
   DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), '3s-')),

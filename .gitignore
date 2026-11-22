@@ -3,3 +3,6 @@ data/
 .env
 .vercel/
 dist/
+.vercel
+.env*
+!.env.example
