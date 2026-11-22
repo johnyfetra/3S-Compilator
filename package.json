@@ -1,0 +1,54 @@
+{
+  "name": "3s-compilator",
+  "version": "2.0.0",
+  "private": true,
+  "description": "3S Compilator : éditeur et exécuteur de code avec pas à pas (JavaScript, Python, PHP, C, C++, Algorithme) pour SAMSRIAH School.",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test tests/",
+    "electron": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "acorn": "8.15.0",
+    "esbuild": "^0.25.12",
+    "JSCPP": "^2.0.9"
+  },
+  "build": {
+    "appId": "mg.samsriah.3scompilator",
+    "productName": "3S Compilator",
+    "files": [
+      "index.html",
+      "admin.html",
+      "manifest.webmanifest",
+      "css/**",
+      "js/**",
+      "vendor/**",
+      "assets/**",
+      "electron/**"
+    ],
+    "mac": {
+      "icon": "assets/logo-512.png",
+      "category": "public.app-category.education"
+    },
+    "win": {
+      "icon": "assets/logo-512.png",
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "icon": "assets/logo-512.png",
+      "target": [
+        "AppImage"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "postgres": "^3.4.7"
+  }
+}
