@@ -1,6 +1,6 @@
 // Service worker : l'application et les moteurs (Monaco, Pyodide, PHP) restent disponibles hors ligne
 // après une première visite. Changer VERSION à chaque mise en ligne pour rafraîchir le cache.
-const VERSION = '3s-v8';
+const VERSION = '3s-v9';
 const SHELL = [
   './', 'css/style.css', 'manifest.webmanifest',
   'js/app.js', 'js/admin.js', 'js/theme.js', 'js/languages.js', 'js/editor.js', 'js/output.js', 'js/runner.js', 'js/stepper.js', 'js/store.js',
@@ -8,7 +8,7 @@ const SHELL = [
   'js/workers/shared.js', 'js/workers/javascript.js', 'js/workers/python.js', 'js/workers/php.js',
   'js/workers/cpp.js', 'js/workers/pseudocode.js',
   'vendor/acorn-8.15.0.min.js', 'vendor/jscpp-2.0.9.min.js',
-  'assets/logo-3s.svg', 'assets/logo-192.png',
+  'assets/logo-64.png', 'assets/logo-192.png',
   'assets/icons/javascript.svg', 'assets/icons/python.svg', 'assets/icons/php.svg',
   'assets/icons/c.svg', 'assets/icons/cpp.svg', 'assets/icons/pseudocode.svg',
 ];
