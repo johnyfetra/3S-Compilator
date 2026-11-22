@@ -151,6 +151,9 @@ class PgStore {
   constructor(url) {
     const postgres = require('postgres');
     const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
+    // Les paramètres d'URL (sslmode, supa…) seraient envoyés au serveur comme options de
+    // connexion et le pooler Supabase coupe alors la connexion : SSL est réglé ci-dessous.
+    url = url.split('?')[0];
     this.sql = postgres(url, {
       max: 3,
       idle_timeout: 20,
