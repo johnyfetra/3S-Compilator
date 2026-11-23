@@ -29,6 +29,7 @@ function show(view) {
   $('logoutBtn').hidden = view !== 'dash';
   $('userBadge').hidden = view !== 'dash';
   $('studentsBtn').hidden = view !== 'dash';
+  $('statsBtn').hidden = view !== 'dash';
   $('settingsBtn').hidden = !isSuper;
   $('teachersBtn').hidden = !isSuper;
 }
@@ -320,6 +321,115 @@ $('settingsForm').addEventListener('submit', async (e) => {
   } catch (err) {
     $('settingsError').textContent = err.message;
     $('settingsError').hidden = false;
+  }
+});
+
+// ---------------------------------------------------------------- Statistiques
+function el(tag, text, className) {
+  const e = document.createElement(tag);
+  if (text !== undefined) e.textContent = text;
+  if (className) e.className = className;
+  return e;
+}
+
+function section(title, ...children) {
+  const s = el('section');
+  s.append(el('h3', title), ...children);
+  return s;
+}
+
+function table(headers, rows, onRow) {
+  const t = el('table', undefined, 'subs');
+  const head = el('tr');
+  for (const h of headers) head.appendChild(el('th', h));
+  t.appendChild(el('thead')).appendChild(head);
+  const body = t.appendChild(el('tbody'));
+  rows.forEach((cells, i) => {
+    const tr = el('tr');
+    for (const c of cells) tr.appendChild(el('td', String(c)));
+    if (onRow) {
+      tr.tabIndex = 0;
+      tr.addEventListener('click', () => onRow(i));
+      tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') onRow(i); });
+    }
+    body.appendChild(tr);
+  });
+  return t;
+}
+
+function bars(items) {
+  const max = Math.max(1, ...items.map((x) => x.n));
+  const box = el('div');
+  for (const { label, n } of items) {
+    const row = el('div', undefined, 'bar-row');
+    const track = el('div');
+    track.appendChild(el('div', undefined, 'bar')).style.width = `${(n / max) * 100}%`;
+    row.append(el('span', label), track, el('span', String(n), 'n'));
+    box.appendChild(row);
+  }
+  return box;
+}
+
+const pct = (a, b) => (b ? `${Math.round((a / b) * 100)} %` : '-');
+
+function renderStats(st) {
+  const body = $('statsBody');
+  body.textContent = '';
+  const t = st.totals;
+  const tiles = el('div', undefined, 'stats');
+  for (const [n, label] of [
+    [t.students, 'élèves inscrits'],
+    [`${t.activeStudents} (${pct(t.activeStudents, t.students)})`, 'élèves ayant rendu'],
+    [t.submissions, 'exercices rendus'],
+    [t.currentBimestre, `exercices · ${st.currentBimestre}`],
+    [t.lastWeek, 'exercices ces 7 jours'],
+    [t.classes, me.role === 'superadmin' ? 'classes' : 'mes classes'],
+  ]) {
+    const tile = el('div', undefined, 'stat');
+    tile.append(el('strong', String(n)), el('span', label));
+    tiles.appendChild(tile);
+  }
+  body.appendChild(tiles);
+
+  const isSuper = me.role === 'superadmin';
+  const classHeaders = ['Classe', 'Élèves', 'Ont rendu', 'Exercices', 'Dernier envoi', ...(isSuper ? ['Professeurs'] : [])];
+  const classRows = st.byClass.map((c) => [
+    c.className, c.students, `${c.active} (${pct(c.active, c.students)})`, c.submissions,
+    c.lastAt ? fmtDate(c.lastAt) : '-', ...(isSuper ? [c.teachers.join(', ') || 'Aucun'] : []),
+  ]);
+  // Clic sur une classe : la liste des exercices est filtrée sur cette classe.
+  body.appendChild(section('Par classe', table(classHeaders, classRows, (i) => {
+    $('statsDialog').close();
+    $('fClass').value = st.byClass[i].className;
+    fillStudentFilter();
+    refresh();
+  })));
+
+  body.appendChild(section('Par bimestre', bars(st.byBimestre.map((b) => ({ label: b.bimestre, n: b.submissions })))));
+  if (st.byLang.length) {
+    body.appendChild(section('Par langage', bars(st.byLang.map((l) => ({ label: byId[l.lang] ? byId[l.lang].name : l.lang, n: l.submissions })))));
+  }
+  if (isSuper) {
+    body.appendChild(section('Professeurs', st.teachers.length
+      ? table(['Professeur', 'Classes', 'Exercices'], st.teachers.map((p) => [`${p.name} (${p.username})`, p.classes.join(', ') || 'Aucune', p.submissions]))
+      : el('p', 'Aucun professeur : ajoutez-en avec le bouton « Professeurs ».', 'muted')));
+  }
+  const inactive = el('ul', undefined, 'files-list');
+  for (const x of st.inactive) {
+    const li = el('li');
+    li.append(el('span', x.name, 'name'), el('span', x.className, 'date'));
+    inactive.appendChild(li);
+  }
+  if (!st.inactive.length) inactive.appendChild(el('li', 'Tous les élèves inscrits ont rendu au moins un exercice.', 'files-empty'));
+  body.appendChild(section(`Élèves sans exercice rendu (${st.inactive.length})`, inactive));
+}
+
+$('statsBtn').addEventListener('click', async () => {
+  try {
+    renderStats(await api.stats());
+    $('statsDialog').showModal();
+  } catch (e) {
+    toast(e.message);
   }
 });
 

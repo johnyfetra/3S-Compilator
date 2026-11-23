@@ -17,6 +17,7 @@ const newId = () => crypto.randomUUID();
 const publicTeacher = ({ passwordHash, sessionVersion, ...t }) => t;
 const publicStudent = ({ id, name, className }) => ({ id, name, className });
 const byName = (a, b) => a.name.localeCompare(b.name, 'fr');
+const meta = ({ studentId, className, bimestre, lang, updatedAt }) => ({ studentId: studentId || null, className, bimestre, lang, updatedAt });
 const hash = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 // Résumé sans le code (liste du tableau de bord).
@@ -90,6 +91,11 @@ class FileStore {
     return this.read().submissions.filter((s) => matches(s, filter))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map(summary);
+  }
+
+  // Champs utiles aux statistiques (sans le code), tous les exercices.
+  async submissionMeta() {
+    return this.read().submissions.map(meta);
   }
 
   async getSubmission(id) {
@@ -315,6 +321,12 @@ class PgStore {
     return rows.map((r) => summary(PgStore.row(r)));
   }
 
+  async submissionMeta() {
+    await this.init();
+    const rows = await this.sql`SELECT student_id, class_name, bimestre, lang, updated_at FROM submissions`;
+    return rows.map((r) => meta({ studentId: r.student_id, className: r.class_name, bimestre: r.bimestre, lang: r.lang, updatedAt: new Date(r.updated_at).toISOString() }));
+  }
+
   async getSubmission(id) {
     await this.init();
     const [r] = await this.sql`SELECT * FROM submissions WHERE id = ${id}`;
@@ -404,18 +416,17 @@ class PgStore {
   // null : élève introuvable ; false : ce nom existe déjà dans la classe.
   async renameStudent(id, name) {
     await this.init();
-    return this.sql.begin(async (sql) => {
-      let r;
-      try {
-        [r] = await sql`UPDATE students SET name = ${name} WHERE id = ${id} RETURNING *`;
-      } catch (e) {
-        if (e.code === '23505') return false;
-        throw e;
-      }
-      if (!r) return null;
-      await sql`UPDATE submissions SET student = ${name} WHERE student_id = ${id}`;
-      return PgStore.student(r);
-    });
+    try {
+      return await this.sql.begin(async (sql) => {
+        const [r] = await sql`UPDATE students SET name = ${name} WHERE id = ${id} RETURNING *`;
+        if (!r) return null;
+        await sql`UPDATE submissions SET student = ${name} WHERE student_id = ${id}`;
+        return PgStore.student(r);
+      });
+    } catch (e) {
+      if (e.code === '23505') return false; // index unique (classe, nom) : transaction annulée
+      throw e;
+    }
   }
 
   async deleteStudent(id) {

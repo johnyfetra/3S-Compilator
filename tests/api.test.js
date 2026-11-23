@@ -165,6 +165,18 @@ test('super admin crée un prof ; le prof ne voit que ses classes', async () => 
   assert.equal((await call(`/admin/submissions/${other.data.id}`, { headers: { Cookie: prof } })).status, 404);
   assert.equal((await call(`/admin/submissions/${other.data.id}`, { method: 'DELETE', headers: { Cookie: prof } })).status, 404);
   assert.equal((await call('/admin/teachers', { headers: { Cookie: prof } })).status, 403);
+  // Statistiques : le prof ne voit que ses classes, sans la liste des professeurs.
+  const profStats = (await call('/admin/stats', { headers: { Cookie: prof } })).data;
+  assert.deepEqual(profStats.byClass.map((c) => c.className), ['6ème']);
+  assert.equal(profStats.teachers, undefined);
+  assert.ok(profStats.inactive.every((x) => x.className === '6ème'));
+  const adminStats = (await call('/admin/stats', { headers: { Cookie: admin } })).data;
+  assert.deepEqual(adminStats.byClass.map((c) => c.className), ['6ème', 'Terminale']);
+  assert.deepEqual(adminStats.byClass[0].teachers, ['M. Rakoto']);
+  assert.equal(adminStats.byClass[0].active, 1);
+  assert.ok(adminStats.totals.submissions >= 2);
+  assert.ok(adminStats.teachers.some((x) => x.username === 'rakoto'));
+
   // Élèves : le prof gère seulement ceux de ses classes.
   assert.ok((await call('/admin/students', { headers: { Cookie: prof } })).data.every((x) => x.className === '6ème'));
   assert.equal((await call('/admin/students', { method: 'POST', body: { className: 'Terminale', names: ['X'] }, headers: { Cookie: prof } })).status, 403);

@@ -45,7 +45,11 @@ Ne pas ouvrir `index.html` par double-clic : en `file://`, les workers et les mo
 | Rôle | Connexion | Droits |
 |---|---|---|
 | Super admin | `ADMIN_USERNAME` / `ADMIN_PASSWORD` du fichier `.env` | tous les devoirs, gestion des professeurs, des classes et des bimestres |
-| Professeur | compte créé par le super admin | uniquement les exercices et les élèves de **ses** classes (liste des élèves, exercices d'un élève, lecture, exécution, téléchargement, suppression) |
+| Professeur | compte créé par le super admin, qui lui attribue ses classes | uniquement les exercices et les élèves de **ses** classes (liste des élèves, exercices d'un élève, lecture, exécution, téléchargement, suppression) |
+
+Le bouton **Statistiques** résume les classes visibles : élèves inscrits et ayant rendu, exercices
+par classe, par bimestre et par langage, envois des 7 derniers jours, élèves sans exercice ; le super
+admin y voit aussi les professeurs et les classes sans professeur.
 
 Les devoirs sont rangés automatiquement par classe puis par bimestre. Un professeur qui demande
 un devoir d'une autre classe reçoit « introuvable », même en appelant l'API directement.

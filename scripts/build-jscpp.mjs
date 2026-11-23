@@ -4,6 +4,10 @@
 // Usage : node scripts/build-jscpp.mjs
 import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'module';
+
+var require = createRequire(import.meta.url);
+var module = { exports: {} };
 
 const PATCHES = {
   'includes/iostream.js': [

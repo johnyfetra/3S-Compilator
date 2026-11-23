@@ -105,6 +105,7 @@ export const api = {
   get: (id) => request(`admin/submissions/${encodeURIComponent(id)}`),
   remove: (id) => request(`admin/submissions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   saveSettings: (settings) => request('admin/settings', { method: 'PUT', body: settings }),
+  stats: () => request('admin/stats'),
   roster: (className) => request('admin/students?' + new URLSearchParams({ className })),
   addStudents: (className, names) => request('admin/students', { method: 'POST', body: { className, names } }),
   renameStudent: (id, name) => request(`admin/students/${encodeURIComponent(id)}`, { method: 'PUT', body: { name } }),

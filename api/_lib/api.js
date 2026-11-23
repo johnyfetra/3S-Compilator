@@ -14,6 +14,7 @@
 //   GET    /api/admin/submissions/:id       devoir complet (code)
 //   DELETE /api/admin/submissions/:id
 //   PUT    /api/admin/settings              { classes, bimestres, currentBimestre } (super admin ; '' = automatique)
+//   GET    /api/admin/stats                 statistiques des classes visibles (+ professeurs pour le super admin)
 //   GET    /api/admin/students?className=   élèves (prof : ses classes seulement)
 //   POST   /api/admin/students              { className, names: [...] } -> élèves ajoutés
 //   PUT    /api/admin/students/:id          { name }
@@ -136,6 +137,52 @@ async function validTeacher(body, store, env, creating) {
 // Un professeur ne voit que les devoirs et les élèves de ses classes.
 const canSee = (user, item) => user.role === 'superadmin' || user.classes.includes(item.className);
 
+// Statistiques limitées à ce que le compte peut voir ; le super admin voit aussi les professeurs.
+function buildStats(user, settings, students, subs, teachers, now = Date.now()) {
+  const classes = settings.classes.filter((className) => canSee(user, { className }));
+  students = students.filter((x) => classes.includes(x.className));
+  subs = subs.filter((x) => classes.includes(x.className));
+  const { currentBimestre } = bimestreState(settings, new Date(now));
+  const weekAgo = new Date(now - 7 * 24 * 3600 * 1000).toISOString();
+  const count = (list, key) => list.reduce((m, x) => m.set(x[key], (m.get(x[key]) || 0) + 1), new Map());
+  const rosterIds = new Set(students.map((x) => x.id));
+  const active = new Set(subs.map((x) => x.studentId).filter((id) => rosterIds.has(id)));
+  const teachersOf = (className) => (teachers || []).filter((t) => t.classes.includes(className)).map((t) => t.name);
+
+  const byClass = classes.map((className) => {
+    const own = subs.filter((x) => x.className === className);
+    const roster = students.filter((x) => x.className === className);
+    return {
+      className,
+      students: roster.length,
+      active: roster.filter((x) => active.has(x.id)).length,
+      submissions: own.length,
+      lastAt: own.reduce((max, x) => (x.updatedAt > max ? x.updatedAt : max), '') || null,
+      ...(teachers ? { teachers: teachersOf(className) } : {}),
+    };
+  });
+  const perBimestre = count(subs, 'bimestre');
+  const perLang = count(subs, 'lang');
+  return {
+    currentBimestre,
+    totals: {
+      classes: classes.length,
+      students: students.length,
+      activeStudents: active.size,
+      submissions: subs.length,
+      currentBimestre: perBimestre.get(currentBimestre) || 0,
+      lastWeek: subs.filter((x) => x.updatedAt >= weekAgo).length,
+    },
+    byClass,
+    byBimestre: settings.bimestres.map((bimestre) => ({ bimestre, submissions: perBimestre.get(bimestre) || 0 })),
+    byLang: [...perLang].map(([lang, n]) => ({ lang, submissions: n })).sort((a, b) => b.submissions - a.submissions),
+    inactive: students.filter((x) => !active.has(x.id)),
+    ...(teachers ? {
+      teachers: teachers.map((t) => ({ name: t.name, username: t.username, classes: t.classes, submissions: subs.filter((x) => t.classes.includes(x.className)).length })),
+    } : {}),
+  };
+}
+
 const personName = (value) => text(typeof value === 'string' ? value.replace(/\s+/g, ' ') : value, 'nom de l\'élève', 80);
 
 function list(value) {
@@ -232,6 +279,12 @@ function createHandler(env = process.env, store = createStore(env)) {
             await store.deleteSubmission(m[1]);
             return send(res, 200, { ok: true });
           }
+        }
+
+        if (route === '/admin/stats' && method === 'GET') {
+          const [settings, students, subs] = await Promise.all([store.getSettings(), store.listStudents(''), store.submissionMeta()]);
+          const teachers = user.role === 'superadmin' ? await store.listTeachers() : null;
+          return send(res, 200, buildStats(user, settings, students, subs, teachers));
         }
 
         if (route === '/admin/students' && method === 'GET') {

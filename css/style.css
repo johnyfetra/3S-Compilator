@@ -537,6 +537,14 @@ a.btn { text-decoration: none; }
 .stat { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
 .stat strong { display: block; font-size: 22px; color: var(--primary); }
 .stat span { color: var(--muted); font-size: 12px; }
+#statsDialog { width: min(880px, calc(100vw - 32px)); }
+.stats-body { display: flex; flex-direction: column; gap: 16px; max-height: 70vh; overflow: auto; }
+.stats-body h3 { margin: 0 0 6px; font-size: 15px; }
+.stats-body .subs td { max-width: 160px; }
+.bar-row { display: grid; grid-template-columns: 110px 1fr 36px; align-items: center; gap: 8px; font-size: 13px; }
+.bar-row + .bar-row { margin-top: 4px; }
+.bar { height: 8px; border-radius: 4px; background: var(--primary); min-width: 2px; }
+.bar-row .n { text-align: right; color: var(--muted); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 84px; overflow: auto; }
 .chip {

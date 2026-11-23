@@ -27,6 +27,7 @@
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.8.7 3 2.4 3.5 5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20h16M7 16v-5M12 16V6M17 16v-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
 </svg>
 
@@ -41,6 +42,7 @@
   <div class="topbar-actions">
     <span id="userBadge" class="user-badge" hidden></span>
     <a class="btn btn-ghost" href="./"><svg class="icon"><use href="#i-code"/></svg><span class="label">Compilateur</span></a>
+    <button id="statsBtn" class="btn btn-ghost" type="button" hidden><svg class="icon"><use href="#i-chart"/></svg><span class="label">Statistiques</span></button>
     <button id="studentsBtn" class="btn btn-ghost" type="button" hidden><svg class="icon"><use href="#i-users"/></svg><span class="label">Élèves</span></button>
     <button id="teachersBtn" class="btn btn-ghost" type="button" hidden><svg class="icon"><use href="#i-users"/></svg><span class="label">Professeurs</span></button>
     <button id="settingsBtn" class="btn btn-icon" type="button" title="Classes et bimestres" aria-label="Classes et bimestres" hidden><svg class="icon"><use href="#i-settings"/></svg></button>
@@ -175,6 +177,14 @@
       <button class="btn btn-primary" type="submit">Ajouter à la classe</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="statsDialog" class="dialog">
+  <div class="dialog-head">
+    <h2 id="statsTitle">Statistiques</h2>
+    <form method="dialog"><button class="btn btn-icon" value="close" aria-label="Fermer"><svg class="icon"><use href="#i-close"/></svg></button></form>
+  </div>
+  <div id="statsBody" class="stats-body"></div>
 </dialog>
 
 <div id="toast" class="toast" role="status" hidden></div>

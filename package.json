@@ -2,10 +2,10 @@
   "name": "3s-compilator",
   "version": "2.0.0",
   "private": true,
-  "description": "3S Compilator : éditeur et exécuteur de code avec pas à pas (JavaScript, Python, PHP, C, C++, Algorithme) pour SAMSRIAH School.",
+  "description": "3S Compilator : \u00e9diteur et ex\u00e9cuteur de code avec pas \u00e0 pas (JavaScript, Python, PHP, C, C++, Algorithme) pour SAMSRIAH School.",
   "main": "electron/main.js",
   "scripts": {
-    "start": "node server/index.js",
+    "start": "node init && node server/index.js",
     "test": "node --test tests/*.test.js",
     "electron": "electron .",
     "dist": "electron-builder"
