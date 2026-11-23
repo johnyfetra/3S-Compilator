@@ -12,7 +12,7 @@ const store = new LocalStore();
 
 // ---------------------------------------------------------------- État
 // Un brouillon par langage : { code, fileId, name, savedCode }
-// student = { name, className, bimestre } : rempli une fois, proposé aux enregistrements suivants.
+// student = { id, name, className } : choisi une fois, proposé aux enregistrements suivants.
 const saved = prefs.load();
 const state = {
   lang: byId[saved.lang] ? saved.lang : LANGUAGES[0].id,
@@ -191,16 +191,17 @@ const stepper = new Stepper({
 });
 
 // ---------------------------------------------------------------- Enregistrement
-// Le devoir est toujours gardé sur l'appareil, puis envoyé au serveur (classe, bimestre, élève).
+// Un fichier = un exercice. Il est toujours gardé sur l'appareil, puis envoyé au serveur au nom
+// de l'élève choisi dans la liste de sa classe ; le serveur y ajoute le bimestre en cours.
 let settingsCache = null;
 
 async function save() {
   syncDraft();
   const d = draft();
   const file = d.fileId ? await store.get(d.fileId) : null;
-  // Déjà enregistré avec un nom d'élève : Ctrl+S met simplement à jour.
-  if (file && file.student) {
-    await writeFile({ title: d.name, student: file.student, className: file.className, bimestre: file.bimestre });
+  // Exercice déjà enregistré au nom d'un élève : Ctrl+S met simplement à jour.
+  if (file && file.studentId) {
+    await writeFile({ title: d.name, studentId: file.studentId, student: file.student, className: file.className });
     return;
   }
   openSaveDialog();
@@ -208,60 +209,115 @@ async function save() {
 
 async function openSaveDialog() {
   const d = draft();
+  const remembered = state.student;
   $('saveName').value = d.name;
-  $('saveStudent').value = state.student.name || '';
   $('saveError').hidden = true;
   $('saveDialog').showModal();
-  ($('saveStudent').value ? $('saveName') : $('saveStudent')).focus();
 
   try {
     settingsCache = settingsCache || await api.settings();
-    fillSelect($('saveClass'), settingsCache.classes, state.student.className);
-    fillSelect($('saveBimestre'), settingsCache.bimestres, state.student.bimestre);
-    $('saveNote').textContent = 'Votre programme sera envoyé à l\'enseignant.';
+    fillSelect($('saveClass'), settingsCache.classes, remembered.className);
+    $('saveNote').textContent = `Votre exercice sera envoyé à l'enseignant (${settingsCache.currentBimestre}).`;
+    await loadStudents();
   } catch (e) {
-    // Hors ligne ou site sans serveur : on garde quand même la classe et le bimestre saisis avant.
-    fillSelect($('saveClass'), [state.student.className].filter(Boolean), state.student.className, true);
-    fillSelect($('saveBimestre'), [state.student.bimestre].filter(Boolean), state.student.bimestre, true);
-    $('saveNote').textContent = 'Serveur injoignable : le programme sera enregistré sur cet appareil seulement.';
+    // Hors ligne ou site sans serveur : enregistrement sur l'appareil, avec l'élève choisi avant.
+    fillSelect($('saveClass'), [remembered.className].filter(Boolean), remembered.className, true);
+    fillSelect($('saveStudent'), remembered.id ? [[remembered.id, remembered.name]] : [], remembered.id, true);
+    $('saveStudent').disabled = false;
+    $('saveNote').textContent = 'Serveur injoignable : l\'exercice sera enregistré sur cet appareil seulement.';
   }
+  const first = [$('saveClass'), $('saveStudent')].find((el) => !el.value && !el.disabled);
+  (first || $('saveName')).focus();
 }
 
+// Liste des élèves de la classe choisie (tenue par l'enseignant).
+async function loadStudents() {
+  const className = $('saveClass').value;
+  const select = $('saveStudent');
+  select.disabled = true;
+  $('saveError').hidden = true;
+  fillSelect(select, [], '');
+  if (!className) return;
+  let students;
+  try {
+    students = await api.students(className);
+  } catch (e) {
+    showSaveError(`Liste des élèves indisponible : ${e.message}`);
+    return;
+  }
+  if ($('saveClass').value !== className) return; // classe changée entre-temps
+  fillSelect(select, students.map((st) => [st.id, st.name]), state.student.id);
+  select.disabled = !students.length;
+  if (!students.length) showSaveError('Aucun élève dans cette classe : demandez à votre enseignant de vous ajouter.');
+}
+
+function showSaveError(message) {
+  $('saveError').textContent = message;
+  $('saveError').hidden = false;
+}
+
+// items : valeurs, ou paires [valeur, libellé].
 function fillSelect(select, items, selected, optional = false) {
   select.textContent = '';
   const empty = new Option(optional ? 'Non précisé' : 'Choisir…', '');
   empty.disabled = !optional;
   select.add(empty);
-  for (const item of items) select.add(new Option(item, item, false, item === selected));
-  if (!items.includes(selected)) select.value = '';
+  for (const item of items) {
+    const [value, label] = Array.isArray(item) ? item : [item, item];
+    select.add(new Option(label, value, false, value === selected));
+  }
+  if (select.selectedIndex <= 0) select.value = '';
   select.required = !optional;
 }
 
-async function writeFile({ title, student, className, bimestre }) {
+async function writeFile({ title, studentId, student, className }) {
   const d = draft();
   const previous = d.fileId ? await store.get(d.fileId) : null;
   let file;
   try {
     file = await store.save({
-      ...(previous || {}), id: d.fileId, name: title, lang: state.lang, code: d.code, student, className, bimestre,
+      ...(previous || {}), id: d.fileId, name: title, lang: state.lang, code: d.code, studentId, student, className,
     });
   } catch (e) {
     toast(e.message);
     return;
   }
   Object.assign(d, { fileId: file.id, name: file.name, savedCode: d.code });
-  state.student = { name: student, className, bimestre };
+  state.student = { id: studentId, name: student, className };
   updateFileTab();
   persist();
 
-  if (!className || !bimestre) { toast(`« ${file.name} » enregistré sur cet appareil`); return; }
+  if (!studentId) { toast(`« ${file.name} » enregistré sur cet appareil`); return; }
+  if (!d.code.trim()) { toast(`« ${file.name} » enregistré sur cet appareil. Il sera envoyé quand il contiendra du code.`); return; }
   try {
-    const remote = await api.submit({ student, className, bimestre, title, lang: state.lang, code: d.code }, file.remote);
+    const remote = await api.submit({ studentId, title, lang: state.lang, code: d.code }, file.remote);
     await store.save({ ...file, remote });
-    toast(`« ${file.name} » envoyé à l'enseignant (${className}, ${bimestre})`);
+    toast(`« ${file.name} » envoyé à l'enseignant (${className})`);
   } catch (e) {
     toast(`Enregistré sur cet appareil. Envoi impossible : ${e.message}`);
   }
+}
+
+// Nouvel exercice : fichier vide, enregistré ensuite comme un nouvel envoi (classe, élève, nom).
+async function newExercise() {
+  syncDraft();
+  const d = draft();
+  const btn = $('newBtn');
+  const unsaved = d.fileId ? d.code !== d.savedCode : Boolean(d.code.trim()) && d.code !== byId[state.lang].sample;
+  // Deux clics si le travail en cours n'est pas enregistré : évite de le perdre par erreur.
+  if (unsaved && !btn.dataset.confirm) {
+    btn.dataset.confirm = '1';
+    toast('Exercice non enregistré : cliquez encore sur « Nouveau » pour l\'abandonner.');
+    setTimeout(() => { delete btn.dataset.confirm; }, 4000);
+    return;
+  }
+  delete btn.dataset.confirm;
+  stepper.close();
+  const n = (await store.list()).filter((f) => f.lang === state.lang).length + 1;
+  Object.assign(d, { code: '', fileId: null, name: withExtension(`exercice-${n}`), savedCode: null });
+  loadDraft();
+  persist();
+  if (editor) editor.focus();
 }
 
 function withExtension(name) {
@@ -296,7 +352,7 @@ async function showFiles() {
     const date = document.createElement('span');
     date.className = 'date';
     const when = new Date(f.updatedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
-    date.textContent = [byId[f.lang] ? byId[f.lang].name : f.lang, f.className, f.bimestre, when].filter(Boolean).join(' · ');
+    date.textContent = [byId[f.lang] ? byId[f.lang].name : f.lang, f.student, f.className, when].filter(Boolean).join(' · ');
     meta.append(name, date);
     if (f.sent) {
       const badge = document.createElement('span');
@@ -374,6 +430,7 @@ function bind() {
   $('stopBtn').addEventListener('click', () => runner.stop());
   $('clearBtn').addEventListener('click', () => { stepper.close(); output.clear(); editor && editor.mark(null); setStatus('idle', 'Prêt'); });
   $('resetBtn').addEventListener('click', resetSample);
+  $('newBtn').addEventListener('click', newExercise);
   $('saveBtn').addEventListener('click', save);
   $('downloadBtn').addEventListener('click', download);
   $('filesBtn').addEventListener('click', showFiles);
@@ -382,13 +439,15 @@ function bind() {
 
   initTheme($('themeBtn'), () => editor && editor.setTheme(editorTheme()));
 
+  $('saveClass').addEventListener('change', loadStudents);
   $('saveForm').addEventListener('submit', (e) => {
     if (!e.submitter || e.submitter.value !== 'ok') return;
+    const picked = $('saveStudent').selectedOptions[0];
     writeFile({
       title: withExtension($('saveName').value),
-      student: $('saveStudent').value.trim().replace(/\s+/g, ' '),
+      studentId: $('saveStudent').value,
+      student: $('saveStudent').value ? picked.textContent : '',
       className: $('saveClass').value,
-      bimestre: $('saveBimestre').value,
     });
   });
 

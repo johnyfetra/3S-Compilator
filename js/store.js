@@ -1,10 +1,10 @@
 // Stockage du travail de l'élève.
 //
 // Deux niveaux : LocalStore garde une copie dans le navigateur (fonctionne hors ligne),
-// et `api` envoie le devoir au serveur (classe, bimestre, nom de l'élève).
+// et `api` envoie l'exercice au serveur (l'élève choisi dans la liste de sa classe).
 //
 // Interface de LocalStore :
-//   list()            -> [{ id, name, lang, updatedAt, sent, className, bimestre }]
+//   list()            -> [{ id, name, lang, updatedAt, sent, className, student }]
 //   get(id)           -> { id, name, lang, code, stdin, updatedAt } | null
 //   save(file)        -> fichier enregistré (id créé si absent)
 //   remove(id)
@@ -34,7 +34,7 @@ function write(key, value) {
 export class LocalStore {
   async list() {
     return read(FILES_KEY, [])
-      .map(({ id, name, lang, updatedAt, remote, className, bimestre }) => ({ id, name, lang, updatedAt, sent: Boolean(remote), className, bimestre }))
+      .map(({ id, name, lang, updatedAt, remote, className, student }) => ({ id, name, lang, updatedAt, sent: Boolean(remote), className, student }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
@@ -82,6 +82,7 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
 
 export const api = {
   settings: () => request('settings'),
+  students: (className) => request('students?' + new URLSearchParams({ className })),
 
   // Crée ou met à jour le devoir de l'élève ; remote = { id, token } d'un envoi précédent.
   async submit(submission, remote) {
@@ -104,6 +105,10 @@ export const api = {
   get: (id) => request(`admin/submissions/${encodeURIComponent(id)}`),
   remove: (id) => request(`admin/submissions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   saveSettings: (settings) => request('admin/settings', { method: 'PUT', body: settings }),
+  roster: (className) => request('admin/students?' + new URLSearchParams({ className })),
+  addStudents: (className, names) => request('admin/students', { method: 'POST', body: { className, names } }),
+  renameStudent: (id, name) => request(`admin/students/${encodeURIComponent(id)}`, { method: 'PUT', body: { name } }),
+  deleteStudent: (id) => request(`admin/students/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   teachers: () => request('admin/teachers'),
   createTeacher: (t) => request('admin/teachers', { method: 'POST', body: t }),
   updateTeacher: (id, t) => request(`admin/teachers/${encodeURIComponent(id)}`, { method: 'PUT', body: t }),

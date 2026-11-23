@@ -41,6 +41,7 @@
   <div class="topbar-actions">
     <span id="userBadge" class="user-badge" hidden></span>
     <a class="btn btn-ghost" href="./"><svg class="icon"><use href="#i-code"/></svg><span class="label">Compilateur</span></a>
+    <button id="studentsBtn" class="btn btn-ghost" type="button" hidden><svg class="icon"><use href="#i-users"/></svg><span class="label">Élèves</span></button>
     <button id="teachersBtn" class="btn btn-ghost" type="button" hidden><svg class="icon"><use href="#i-users"/></svg><span class="label">Professeurs</span></button>
     <button id="settingsBtn" class="btn btn-icon" type="button" title="Classes et bimestres" aria-label="Classes et bimestres" hidden><svg class="icon"><use href="#i-settings"/></svg></button>
     <button id="logoutBtn" class="btn btn-icon" type="button" title="Se déconnecter" aria-label="Se déconnecter" hidden><svg class="icon"><use href="#i-logout"/></svg></button>
@@ -75,6 +76,7 @@
       <select id="fClass" aria-label="Classe"><option value="">Toutes les classes</option></select>
       <select id="fBimestre" aria-label="Bimestre"><option value="">Tous les bimestres</option></select>
       <select id="fLang" aria-label="Langage"><option value="">Tous les langages</option></select>
+      <select id="fStudent" aria-label="Élève"><option value="">Tous les élèves</option></select>
       <input id="fSearch" type="search" placeholder="Rechercher un élève ou un programme" aria-label="Recherche">
     </div>
     <div class="stats">
@@ -118,11 +120,15 @@
 <dialog id="settingsDialog" class="dialog">
   <form id="settingsForm" method="dialog">
     <div class="dialog-head"><h2>Classes et bimestres</h2></div>
-    <p class="dialog-note">Une valeur par ligne. Les élèves choisissent dans ces listes en enregistrant leur devoir.</p>
+    <p class="dialog-note">Une valeur par ligne. Les élèves choisissent leur classe dans cette liste.</p>
     <div class="field-row">
       <label class="field">Classes<textarea id="sClasses" rows="8" required></textarea></label>
       <label class="field">Bimestres<textarea id="sBimestres" rows="8" required></textarea></label>
     </div>
+    <label class="field">Bimestre en cours
+      <select id="sCurrent"></select>
+    </label>
+    <p class="dialog-note">En automatique, le bimestre I commence le 1er septembre et chaque bimestre dure deux mois. Un bimestre choisi ici s'applique dès aujourd'hui, puis avance de lui-même tous les deux mois jusqu'à la rentrée suivante.</p>
     <p id="settingsError" class="form-error" hidden></p>
     <div class="dialog-actions">
       <button class="btn btn-ghost" value="cancel" formnovalidate>Annuler</button>
@@ -150,6 +156,23 @@
     <div class="dialog-actions">
       <button id="teacherCancel" class="btn btn-ghost" type="button" hidden>Annuler la modification</button>
       <button class="btn btn-primary" type="submit" id="teacherSubmit">Ajouter</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="studentsDialog" class="dialog dialog-wide">
+  <div class="dialog-head">
+    <h2>Élèves</h2>
+    <form method="dialog"><button class="btn btn-icon" value="close" aria-label="Fermer"><svg class="icon"><use href="#i-close"/></svg></button></form>
+  </div>
+  <p class="dialog-note">En enregistrant un exercice, l'élève choisit sa classe puis son nom dans cette liste.</p>
+  <label class="field">Classe<select id="rClass"></select></label>
+  <ul id="rosterList" class="files-list"></ul>
+  <form id="rosterForm" class="teacher-form">
+    <label class="field">Ajouter des élèves (un nom par ligne)<textarea id="rNames" rows="5" required></textarea></label>
+    <p id="rosterError" class="form-error" hidden></p>
+    <div class="dialog-actions">
+      <button class="btn btn-primary" type="submit">Ajouter à la classe</button>
     </div>
   </form>
 </dialog>

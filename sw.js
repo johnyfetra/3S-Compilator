@@ -1,6 +1,6 @@
 // Service worker : l'application et les moteurs (Monaco, Pyodide, PHP) restent disponibles hors ligne
 // après une première visite. Changer VERSION à chaque mise en ligne pour rafraîchir le cache.
-const VERSION = '3s-v9';
+const VERSION = '3s-v10';
 const SHELL = [
   './', 'css/style.css', 'manifest.webmanifest',
   'js/app.js', 'js/admin.js', 'js/theme.js', 'js/languages.js', 'js/editor.js', 'js/output.js', 'js/runner.js', 'js/stepper.js', 'js/store.js',

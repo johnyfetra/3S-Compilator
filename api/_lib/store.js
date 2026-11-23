@@ -2,7 +2,7 @@
 // Stockage des devoirs et des réglages.
 //   - FileStore : un fichier JSON (développement, ou serveur de l'école sans base de données).
 //   - PgStore   : PostgreSQL, choisi automatiquement si DATABASE_URL est défini (Vercel, production).
-// Les deux exposent exactement les mêmes méthodes (réglages, devoirs, professeurs).
+// Les deux exposent exactement les mêmes méthodes (réglages, devoirs, professeurs, élèves).
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,6 +15,8 @@ const DEFAULT_SETTINGS = {
 
 const newId = () => crypto.randomUUID();
 const publicTeacher = ({ passwordHash, sessionVersion, ...t }) => t;
+const publicStudent = ({ id, name, className }) => ({ id, name, className });
+const byName = (a, b) => a.name.localeCompare(b.name, 'fr');
 const hash = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 // Résumé sans le code (liste du tableau de bord).
@@ -22,6 +24,7 @@ const summary = ({ code, stdin, tokenHash, ...rest }) => ({ ...rest, lines: code
 
 function matches(s, f) {
   if (f.className && s.className !== f.className) return false;
+  if (f.studentId && s.studentId !== f.studentId) return false;
   if (f.bimestre && s.bimestre !== f.bimestre) return false;
   if (f.lang && s.lang !== f.lang) return false;
   if (f.q) {
@@ -42,7 +45,7 @@ class FileStore {
       return JSON.parse(fs.readFileSync(this.file, 'utf8'));
     } catch (e) {
       if (e.code !== 'ENOENT') throw e;
-      return { settings: DEFAULT_SETTINGS, submissions: [], teachers: [] };
+      return { settings: DEFAULT_SETTINGS, submissions: [], teachers: [], students: [] };
     }
   }
 
@@ -145,6 +148,54 @@ class FileStore {
       return db.teachers.length < before;
     });
   }
+
+  // ---- Élèves (liste tenue par les enseignants) : { id, name, className }
+  async listStudents(className) {
+    return (this.read().students || []).filter((x) => !className || x.className === className)
+      .map(publicStudent).sort(byName);
+  }
+
+  async getStudent(id) {
+    const x = (this.read().students || []).find((st) => st.id === id);
+    return x ? publicStudent(x) : null;
+  }
+
+  // Ajoute les noms absents de la classe (sans tenir compte des majuscules) ; retourne les ajoutés.
+  addStudents(className, names) {
+    return this.mutate((db) => {
+      db.students = db.students || [];
+      const taken = new Set(db.students.filter((x) => x.className === className).map((x) => x.name.toLowerCase()));
+      const added = [];
+      for (const name of names) {
+        if (taken.has(name.toLowerCase())) continue;
+        taken.add(name.toLowerCase());
+        const x = { id: newId(), name, className, createdAt: new Date().toISOString() };
+        db.students.push(x);
+        added.push(publicStudent(x));
+      }
+      return added;
+    });
+  }
+
+  renameStudent(id, name) {
+    return this.mutate((db) => {
+      const list = db.students || [];
+      const x = list.find((st) => st.id === id);
+      if (!x) return null;
+      if (list.some((st) => st.id !== id && st.className === x.className && st.name.toLowerCase() === name.toLowerCase())) return false;
+      x.name = name;
+      for (const sub of db.submissions) if (sub.studentId === id) sub.student = name;
+      return publicStudent(x);
+    });
+  }
+
+  deleteStudent(id) {
+    return this.mutate((db) => {
+      const before = (db.students || []).length;
+      db.students = (db.students || []).filter((x) => x.id !== id);
+      return db.students.length < before;
+    });
+  }
 }
 
 class PgStore {
@@ -183,6 +234,14 @@ class PgStore {
           updated_at timestamptz NOT NULL DEFAULT now()
         )`;
         await sql`CREATE INDEX IF NOT EXISTS submissions_class_idx ON submissions (class_name, bimestre)`;
+        await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS student_id uuid`;
+        await sql`CREATE TABLE IF NOT EXISTS students (
+          id uuid PRIMARY KEY,
+          class_name text NOT NULL,
+          name text NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT now()
+        )`;
+        await sql`CREATE UNIQUE INDEX IF NOT EXISTS students_class_name_idx ON students (class_name, lower(name))`;
         await sql`CREATE TABLE IF NOT EXISTS teachers (
           id uuid PRIMARY KEY,
           username text NOT NULL UNIQUE,
@@ -194,7 +253,7 @@ class PgStore {
         )`;
         // RLS sans règle = tables fermées à l'API publique de Supabase (clé anon) ;
         // le serveur se connecte en propriétaire des tables et n'est pas concerné.
-        for (const table of ['settings', 'submissions', 'teachers']) {
+        for (const table of ['settings', 'submissions', 'teachers', 'students']) {
           await sql`ALTER TABLE ${sql(table)} ENABLE ROW LEVEL SECURITY`;
         }
       })();
@@ -205,7 +264,7 @@ class PgStore {
 
   static row(r) {
     return {
-      id: r.id, student: r.student, className: r.class_name, bimestre: r.bimestre, title: r.title,
+      id: r.id, studentId: r.student_id, student: r.student, className: r.class_name, bimestre: r.bimestre, title: r.title,
       lang: r.lang, code: r.code, stdin: r.stdin,
       createdAt: new Date(r.created_at).toISOString(), updatedAt: new Date(r.updated_at).toISOString(),
     };
@@ -227,16 +286,17 @@ class PgStore {
   async createSubmission(d) {
     await this.init();
     const token = crypto.randomBytes(24).toString('base64url');
-    const [r] = await this.sql`INSERT INTO submissions (id, student, class_name, bimestre, title, lang, code, stdin, token_hash)
-      VALUES (${newId()}, ${d.student}, ${d.className}, ${d.bimestre}, ${d.title}, ${d.lang}, ${d.code}, ${d.stdin}, ${hash(token)})
+    const [r] = await this.sql`INSERT INTO submissions (id, student_id, student, class_name, bimestre, title, lang, code, stdin, token_hash)
+      VALUES (${newId()}, ${d.studentId}, ${d.student}, ${d.className}, ${d.bimestre}, ${d.title}, ${d.lang}, ${d.code}, ${d.stdin}, ${hash(token)})
       RETURNING *`;
     return { ...summary(PgStore.row(r)), editToken: token };
   }
 
   async updateSubmission(id, token, d) {
     await this.init();
-    const [r] = await this.sql`UPDATE submissions SET student = ${d.student}, class_name = ${d.className},
-      bimestre = ${d.bimestre}, title = ${d.title}, lang = ${d.lang}, code = ${d.code}, stdin = ${d.stdin}, updated_at = now()
+    // Le bimestre reste celui du premier envoi.
+    const [r] = await this.sql`UPDATE submissions SET student_id = ${d.studentId}, student = ${d.student}, class_name = ${d.className},
+      title = ${d.title}, lang = ${d.lang}, code = ${d.code}, stdin = ${d.stdin}, updated_at = now()
       WHERE id = ${id} AND token_hash = ${hash(token)} RETURNING *`;
     return r ? summary(PgStore.row(r)) : null;
   }
@@ -247,6 +307,7 @@ class PgStore {
     const q = f.q ? `%${f.q.replace(/[\\%_]/g, (c) => '\\' + c)}%` : null;
     const rows = await sql`SELECT * FROM submissions WHERE true
       ${f.className ? sql`AND class_name = ${f.className}` : sql``}
+      ${f.studentId ? sql`AND student_id = ${f.studentId}` : sql``}
       ${f.bimestre ? sql`AND bimestre = ${f.bimestre}` : sql``}
       ${f.lang ? sql`AND lang = ${f.lang}` : sql``}
       ${q ? sql`AND (student ILIKE ${q} OR title ILIKE ${q})` : sql``}
@@ -312,6 +373,54 @@ class PgStore {
   async deleteTeacher(id) {
     await this.init();
     const r = await this.sql`DELETE FROM teachers WHERE id = ${id}`;
+    return r.count > 0;
+  }
+
+  async listStudents(className) {
+    await this.init();
+    const sql = this.sql;
+    const rows = await sql`SELECT * FROM students ${className ? sql`WHERE class_name = ${className}` : sql``}`;
+    return rows.map(PgStore.student).sort(byName);
+  }
+
+  static student(r) {
+    return { id: r.id, name: r.name, className: r.class_name };
+  }
+
+  async getStudent(id) {
+    await this.init();
+    const [r] = await this.sql`SELECT * FROM students WHERE id = ${id}`;
+    return r ? PgStore.student(r) : null;
+  }
+
+  async addStudents(className, names) {
+    await this.init();
+    const rows = names.map((name) => ({ id: newId(), class_name: className, name }));
+    const added = await this.sql`INSERT INTO students ${this.sql(rows, 'id', 'class_name', 'name')}
+      ON CONFLICT DO NOTHING RETURNING *`;
+    return added.map(PgStore.student).sort(byName);
+  }
+
+  // null : élève introuvable ; false : ce nom existe déjà dans la classe.
+  async renameStudent(id, name) {
+    await this.init();
+    return this.sql.begin(async (sql) => {
+      let r;
+      try {
+        [r] = await sql`UPDATE students SET name = ${name} WHERE id = ${id} RETURNING *`;
+      } catch (e) {
+        if (e.code === '23505') return false;
+        throw e;
+      }
+      if (!r) return null;
+      await sql`UPDATE submissions SET student = ${name} WHERE student_id = ${id}`;
+      return PgStore.student(r);
+    });
+  }
+
+  async deleteStudent(id) {
+    await this.init();
+    const r = await this.sql`DELETE FROM students WHERE id = ${id}`;
     return r.count > 0;
   }
 }

@@ -32,15 +32,20 @@ Ne pas ouvrir `index.html` par double-clic : en `file://`, les workers et les mo
 
 ## Enregistrement des devoirs et espace enseignant
 
-- L'élève clique sur **Enregistrer** (Ctrl+S) et renseigne son nom, sa classe (6ème à Terminale),
-  son bimestre (I à VI) et le nom du programme. Une copie reste sur l'appareil ; le devoir est
-  envoyé au serveur. Un nouvel enregistrement met à jour le même devoir (jeton gardé par l'appareil).
+- Un fichier = un exercice. Le bouton **Nouveau** ouvre un exercice vide.
+- L'enseignant (ou le super admin) saisit la liste des élèves de chaque classe (bouton **Élèves**).
+- L'élève clique sur **Enregistrer** (Ctrl+S), choisit sa classe, puis son nom dans la liste,
+  puis nomme l'exercice. Une copie reste sur l'appareil ; l'exercice est envoyé au serveur.
+  Un nouvel enregistrement met à jour le même exercice (jeton gardé par l'appareil).
+- Le bimestre n'est pas demandé à l'élève : le serveur ajoute le bimestre en cours. Par défaut
+  le bimestre I commence le 1er septembre et chaque bimestre dure deux mois ; le super admin peut
+  fixer le bimestre en cours (réglages), le décompte repart alors de ce jour jusqu'à la rentrée.
 - Bouton **Enseignant** (en haut à droite) ou adresse **/admin** pour se connecter.
 
 | Rôle | Connexion | Droits |
 |---|---|---|
 | Super admin | `ADMIN_USERNAME` / `ADMIN_PASSWORD` du fichier `.env` | tous les devoirs, gestion des professeurs, des classes et des bimestres |
-| Professeur | compte créé par le super admin | uniquement les devoirs de **ses** classes (lecture, exécution, téléchargement, suppression) |
+| Professeur | compte créé par le super admin | uniquement les exercices et les élèves de **ses** classes (liste des élèves, exercices d'un élève, lecture, exécution, téléchargement, suppression) |
 
 Les devoirs sont rangés automatiquement par classe puis par bimestre. Un professeur qui demande
 un devoir d'une autre classe reçoit « introuvable », même en appelant l'API directement.

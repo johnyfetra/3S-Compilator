@@ -1,4 +1,4 @@
-// Espace enseignant : connexion, liste des devoirs filtrée, lecture du code, réglages.
+// Espace enseignant : connexion, liste des exercices filtrée, lecture du code, élèves, réglages.
 import { byId, LANGUAGES } from './languages.js';
 import { createEditor } from './editor.js';
 import { api } from './store.js';
@@ -8,6 +8,7 @@ const $ = (id) => document.getElementById(id);
 let editor = null;
 let current = null; // devoir affiché
 let settings = { classes: [], bimestres: [] };
+let roster = []; // élèves des classes visibles : [{ id, name, className }]
 let me = null; // { role, username, name, classes }
 let searchTimer = null;
 
@@ -27,6 +28,7 @@ function show(view) {
   $('dashView').hidden = view !== 'dash';
   $('logoutBtn').hidden = view !== 'dash';
   $('userBadge').hidden = view !== 'dash';
+  $('studentsBtn').hidden = view !== 'dash';
   $('settingsBtn').hidden = !isSuper;
   $('teachersBtn').hidden = !isSuper;
 }
@@ -89,13 +91,36 @@ async function openDashboard() {
   $('userBadge').title = me.role === 'superadmin' ? '' : me.classes.join(', ');
   fillOptions($('fClass'), myClasses(), me.role === 'superadmin' ? 'Toutes les classes' : 'Toutes mes classes');
   fillOptions($('fBimestre'), settings.bimestres, 'Tous les bimestres');
+  await loadRoster();
   const langSelect = $('fLang');
   if (langSelect.options.length === 1) for (const l of LANGUAGES) langSelect.add(new Option(l.name, l.id));
   await refresh();
 }
 
+// Liste des élèves du filtre : ceux de la classe choisie, sinon de toutes les classes visibles.
+async function loadRoster() {
+  try {
+    roster = await api.roster('');
+  } catch (e) {
+    toast(e.message);
+  }
+  fillStudentFilter();
+}
+
+function fillStudentFilter() {
+  const select = $('fStudent');
+  const value = select.value;
+  const className = $('fClass').value;
+  select.textContent = '';
+  select.add(new Option('Tous les élèves', ''));
+  for (const st of roster) {
+    if (!className || st.className === className) select.add(new Option(className ? st.name : `${st.name} · ${st.className}`, st.id));
+  }
+  select.value = [...select.options].some((o) => o.value === value) ? value : '';
+}
+
 function filters() {
-  return { className: $('fClass').value, bimestre: $('fBimestre').value, lang: $('fLang').value, q: $('fSearch').value.trim() };
+  return { className: $('fClass').value, studentId: $('fStudent').value, bimestre: $('fBimestre').value, lang: $('fLang').value, q: $('fSearch').value.trim() };
 }
 
 async function refresh() {
@@ -108,10 +133,12 @@ async function refresh() {
     return;
   }
 
-  const students = new Map(); // élève -> nombre de devoirs
+  const students = new Map(); // élève -> { count, studentId }
   for (const s of subs) {
     const key = `${s.student} · ${s.className}`;
-    students.set(key, (students.get(key) || 0) + 1);
+    const entry = students.get(key) || { count: 0, studentId: s.studentId };
+    entry.count += 1;
+    students.set(key, entry);
   }
   $('statDevoirs').textContent = subs.length;
   $('statEleves').textContent = new Set(subs.map((s) => s.student.toLowerCase())).size;
@@ -119,12 +146,16 @@ async function refresh() {
 
   const chips = $('studentChips');
   chips.textContent = '';
-  for (const [name, count] of [...students].sort((a, b) => a[0].localeCompare(b[0], 'fr'))) {
+  for (const [name, { count, studentId }] of [...students].sort((a, b) => a[0].localeCompare(b[0], 'fr'))) {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'chip';
     chip.textContent = `${name} (${count})`;
-    chip.addEventListener('click', () => { $('fSearch').value = name.split(' · ')[0]; refresh(); });
+    // Tous les exercices de l'élève ; recherche par nom pour les anciens envois hors liste.
+    chip.addEventListener('click', () => {
+      if (studentId && roster.some((st) => st.id === studentId)) showStudent(studentId);
+      else { $('fSearch').value = name.split(' · ')[0]; refresh(); }
+    });
     chips.appendChild(chip);
   }
 
@@ -244,7 +275,20 @@ $('dDelete').addEventListener('click', async () => {
   }
 });
 
-for (const id of ['fClass', 'fBimestre', 'fLang']) $(id).addEventListener('change', refresh);
+// Tous les exercices d'un élève, quel que soit le bimestre ou le langage.
+function showStudent(id) {
+  const st = roster.find((x) => x.id === id);
+  $('fClass').value = st.className;
+  fillStudentFilter();
+  $('fStudent').value = id;
+  $('fBimestre').value = '';
+  $('fLang').value = '';
+  $('fSearch').value = '';
+  refresh();
+}
+
+$('fClass').addEventListener('change', () => { fillStudentFilter(); refresh(); });
+for (const id of ['fStudent', 'fBimestre', 'fLang']) $(id).addEventListener('change', refresh);
 $('fSearch').addEventListener('input', () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(refresh, 250);
@@ -254,6 +298,11 @@ $('fSearch').addEventListener('input', () => {
 $('settingsBtn').addEventListener('click', () => {
   $('sClasses').value = settings.classes.join('\n');
   $('sBimestres').value = settings.bimestres.join('\n');
+  const current = $('sCurrent');
+  current.textContent = '';
+  current.add(new Option(`Automatique${settings.manual ? '' : ` (${settings.currentBimestre})`}`, ''));
+  for (const b of settings.bimestres) current.add(new Option(b, b));
+  current.value = settings.manual ? settings.currentBimestre : '';
   $('settingsError').hidden = true;
   $('settingsDialog').showModal();
 });
@@ -263,14 +312,122 @@ $('settingsForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const lines = (id) => $(id).value.split('\n').map((l) => l.trim()).filter(Boolean);
   try {
-    settings = await api.saveSettings({ classes: lines('sClasses'), bimestres: lines('sBimestres') });
+    settings = await api.saveSettings({ classes: lines('sClasses'), bimestres: lines('sBimestres'), currentBimestre: $('sCurrent').value });
     $('settingsDialog').close();
     fillOptions($('fClass'), myClasses(), 'Toutes les classes');
     fillOptions($('fBimestre'), settings.bimestres, 'Tous les bimestres');
-    toast('Listes enregistrées');
+    toast(`Listes enregistrées · ${settings.currentBimestre} en cours`);
   } catch (err) {
     $('settingsError').textContent = err.message;
     $('settingsError').hidden = false;
+  }
+});
+
+// ---------------------------------------------------------------- Élèves (liste par classe)
+function rosterButton(icon, label, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn btn-icon';
+  b.title = label;
+  b.setAttribute('aria-label', label);
+  b.innerHTML = `<svg class="icon"><use href="#i-${icon}"/></svg>`;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function renderRoster() {
+  const list = $('rosterList');
+  list.textContent = '';
+  const students = roster.filter((st) => st.className === $('rClass').value);
+  if (!students.length) {
+    const li = document.createElement('li');
+    li.className = 'files-empty';
+    li.textContent = 'Aucun élève dans cette classe pour le moment.';
+    list.appendChild(li);
+  }
+  for (const st of students) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.style.flex = '1';
+    name.textContent = st.name;
+
+    const actions = document.createElement('span');
+    actions.className = 'actions';
+    const view = rosterButton('code', `Voir les exercices de ${st.name}`, () => {
+      $('studentsDialog').close();
+      showStudent(st.id);
+    });
+    const edit = rosterButton('edit', `Renommer ${st.name}`, () => {
+      const input = document.createElement('input');
+      input.value = st.name;
+      input.maxLength = 80;
+      input.className = 'rename-input';
+      input.setAttribute('aria-label', 'Nouveau nom');
+      name.replaceWith(input);
+      input.focus();
+      input.select();
+      input.addEventListener('keydown', async (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); renderRoster(); }
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        try {
+          await api.renameStudent(st.id, input.value);
+          await loadRoster();
+          renderRoster();
+          refresh();
+        } catch (err) {
+          toast(err.message);
+        }
+      });
+    });
+    const del = rosterButton('trash', `Retirer ${st.name}`, async () => {
+      // Deux clics pour retirer : évite les suppressions accidentelles. Les exercices rendus restent.
+      if (!del.dataset.confirm) {
+        del.dataset.confirm = '1';
+        del.classList.add('btn-danger');
+        del.title = 'Cliquer encore pour retirer cet élève (ses exercices sont gardés)';
+        return;
+      }
+      try {
+        await api.deleteStudent(st.id);
+        await loadRoster();
+        renderRoster();
+      } catch (e) {
+        toast(e.message);
+      }
+    });
+    actions.append(view, edit, del);
+    li.append(name, actions);
+    list.appendChild(li);
+  }
+}
+
+$('studentsBtn').addEventListener('click', () => {
+  const classes = myClasses();
+  fillOptions($('rClass'), classes, 'Choisir une classe');
+  $('rClass').value = $('fClass').value || classes[0] || '';
+  $('rosterError').hidden = true;
+  renderRoster();
+  $('studentsDialog').showModal();
+});
+$('rClass').addEventListener('change', renderRoster);
+
+$('rosterForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('rosterError').hidden = true;
+  const names = $('rNames').value.split('\n').map((l) => l.trim()).filter(Boolean);
+  try {
+    if (!$('rClass').value) throw new Error('Choisissez d\'abord une classe.');
+    const added = await api.addStudents($('rClass').value, names);
+    $('rNames').value = '';
+    await loadRoster();
+    renderRoster();
+    const skipped = names.length - added.length;
+    toast(`${added.length} élève${added.length > 1 ? 's' : ''} ajouté${added.length > 1 ? 's' : ''}${skipped ? ` (${skipped} déjà dans la liste)` : ''}`);
+  } catch (err) {
+    $('rosterError').textContent = err.message;
+    $('rosterError').hidden = false;
   }
 });
 

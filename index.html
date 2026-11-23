@@ -39,6 +39,7 @@
   <symbol id="i-collapse-right" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 4.5v15M8.5 9.5 11 12l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 4h-4v4M16 4h4v4M8 20h-4v-4M16 20h4v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
 </svg>
 
@@ -82,6 +83,9 @@
           <span id="dirtyDot" class="dirty-dot" hidden title="Modifications non enregistrées"></span>
         </div>
         <div class="spacer"></div>
+        <button id="newBtn" class="btn btn-ghost" type="button" title="Nouvel exercice (nouveau fichier)">
+          <svg class="icon"><use href="#i-plus"/></svg><span class="label">Nouveau</span>
+        </button>
         <button id="resetBtn" class="btn btn-icon" type="button" title="Revenir à l'exemple" aria-label="Revenir à l'exemple">
           <svg class="icon"><use href="#i-reset"/></svg>
         </button>
@@ -149,28 +153,25 @@
     <h2>Mes programmes</h2>
     <button class="btn btn-icon" value="close" aria-label="Fermer"><svg class="icon"><use href="#i-close"/></svg></button>
   </form>
-  <p class="dialog-note">Programmes enregistrés depuis cet appareil. Ceux qui portent la mention « Envoyé » sont aussi chez l'enseignant.</p>
+  <p class="dialog-note">Programmes enregistrés depuis cet appareil. Un fichier par exercice ; ceux qui portent la mention « Envoyé » sont aussi chez l'enseignant.</p>
   <ul id="filesList" class="files-list"></ul>
 </dialog>
 
 <dialog id="saveDialog" class="dialog">
   <form id="saveForm" method="dialog">
     <div class="dialog-head">
-      <h2>Enregistrer mon devoir</h2>
+      <h2>Enregistrer mon exercice</h2>
     </div>
-    <p id="saveNote" class="dialog-note">Votre programme sera envoyé à l'enseignant.</p>
-    <label class="field">Nom et prénom de l'élève
-      <input id="saveStudent" name="student" required maxlength="80" autocomplete="name">
-    </label>
+    <p id="saveNote" class="dialog-note">Votre exercice sera envoyé à l'enseignant.</p>
     <div class="field-row">
-      <label class="field">Classe
+      <label class="field">1. Ma classe
         <select id="saveClass" name="className" required></select>
       </label>
-      <label class="field">Bimestre
-        <select id="saveBimestre" name="bimestre" required></select>
+      <label class="field">2. Mon nom
+        <select id="saveStudent" name="studentId" required disabled></select>
       </label>
     </div>
-    <label class="field">Nom du programme
+    <label class="field">3. Nom de l'exercice
       <input id="saveName" name="name" required maxlength="80" autocomplete="off">
     </label>
     <p id="saveError" class="form-error" hidden></p>
